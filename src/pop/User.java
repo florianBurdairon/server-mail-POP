@@ -1,4 +1,4 @@
-package server;
+package pop;
 
 public class User {
     private final String email;

@@ -1,4 +1,4 @@
-package server;
+package pop;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -7,7 +7,7 @@ import java.net.Socket;
 import java.util.*;
 
 public class ServerThread implements Runnable {
-    Socket socket;
+    final Socket socket;
     Scanner in;
     PrintWriter out;
 
@@ -35,7 +35,10 @@ public class ServerThread implements Runnable {
             in = new Scanner(socket.getInputStream());
             out = new PrintWriter(socket.getOutputStream());
 
+            // Send welcome message
             send("+OK POP3");
+
+            // Handle requests
             while(socket.isConnected() && in.hasNextLine()){
                 String plainRequest = in.nextLine();
                 POPRequest request = new POPRequest(plainRequest);
@@ -48,6 +51,7 @@ public class ServerThread implements Runnable {
                         break;
                 }
             }
+            // Update mails if needed
             if (sessionState.equals(SessionState.UPDATE)){
                 mailRepository.updateMails();
             }
@@ -56,6 +60,11 @@ public class ServerThread implements Runnable {
         }
     }
 
+    /**
+     * Handle user authentication
+     * @param request POPRequest
+     * @throws IOException IOException
+     */
     private void handleUserAuthentication(POPRequest request) throws IOException {
         switch (request.command){
             case USER:
@@ -75,18 +84,27 @@ public class ServerThread implements Runnable {
             case NOOP:
                 send("+OK");
                 break;
+            case ERR:
+                send("-ERR  Unknown method.");
+                break;
             default:
                 send("-ERR  Invalid command in current state.");
         }
     }
 
+    /**
+     * Authenticate user
+     * @param email User email
+     * @param password User password
+     * @return User
+     */
     private User authenticateUser(String email, String password) {
         // Check if user exists and password is correct
         if (
             email == null ||
             password == null ||
-            !Server.userExists(email) ||
-            !Server.getUser(email).getPassword().equals(password)
+                    Server.userDontExists(email) ||
+            !Objects.requireNonNull(Server.getUser(email)).getPassword().equals(password)
         ) {
             send("-ERR Invalid user name or password.");
             tmpEmail = null;
@@ -102,12 +120,21 @@ public class ServerThread implements Runnable {
         this.sessionState = SessionState.TRANSACTION;
         send("+OK Mailbox locked and ready");
         User user = Server.getUser(email);
-        user.hasOpenedSession = true;
-        return user;
+        if (user != null) {
+            user.hasOpenedSession = true;
+            return user;
+        }
+        return null;
     }
 
+    /**
+     * Handle user transactions
+     * @param request POPRequest
+     * @throws IOException IOException
+     */
     private void handleUserTransactions(POPRequest request) throws IOException {
-        long[] mailsSize;
+        Map<Integer, Long> mailsSize;
+        //long[] mailsSize;
         long totalSize;
         int index;
         String mail;
@@ -115,27 +142,25 @@ public class ServerThread implements Runnable {
             case STAT:
                 mailsSize = mailRepository.getMailsSize();
                 totalSize = 0;
-                for(long mailSize : mailsSize) {
+                for(long mailSize : mailsSize.values()) {
                     totalSize += mailSize;
                 }
-                send("+OK " + mailsSize.length + " " + totalSize);
+                send("+OK " + mailsSize.size() + " " + totalSize);
                 break;
             case LIST:
                 if (request.args.length == 0) {
                     mailsSize = mailRepository.getMailsSize();
                     totalSize = 0;
-                    for(long mailSize : mailsSize) {
+                    for(long mailSize : mailsSize.values()) {
                         totalSize += mailSize;
                     }
-                    send("+OK " + mailsSize.length + " messages (" + totalSize + " octets)");
-                    for (int i = 0; i < mailsSize.length; i++) {
-                        send((i + 1) + " " + mailsSize[i]);
-                    }
+                    send("+OK " + mailsSize.size() + " messages (" + totalSize + " octets)");
+                    mailsSize.forEach((indexMail, sizeMail) -> send((indexMail + 1) + " " + sizeMail));
                     send(".");
                 } else {
                     int mailIndex = Integer.parseInt(request.args[0]);
-                    long[] mailSize = mailRepository.getMailsSize();
-                    send("+OK " + mailIndex + " " + mailSize[mailIndex]);
+                    mailsSize = mailRepository.getMailsSize();
+                    send("+OK " + mailIndex + " " + mailsSize.get(mailIndex));
                 }
                 break;
             case RETR:
@@ -162,19 +187,18 @@ public class ServerThread implements Runnable {
                 send(".");
                 break;
             case DELE:
-                //FIXME: Behavior not expected
                 int indexToDelete = Integer.parseInt(request.args[0]);
-                mailRepository.deleteMail(indexToDelete);
+                mailRepository.deleteMail(indexToDelete - 1);
                 send("+OK Message " + indexToDelete + " deleted");
                 break;
             case RSET:
                 mailRepository.resetDeletedMails();
                 mailsSize = mailRepository.getMailsSize();
                 totalSize = 0;
-                for(long mailSize : mailsSize) {
+                for(long mailSize : mailsSize.values()) {
                     totalSize += mailSize;
                 }
-                send("+OK maildrop has " + mailsSize.length + " messages (" + totalSize + " octets)");
+                send("+OK mailbox has " + mailsSize.size() + " messages (" + totalSize + " octets)");
                 break;
             case NOOP:
                 send("+OK");
@@ -184,12 +208,19 @@ public class ServerThread implements Runnable {
                 sessionState = SessionState.UPDATE;
                 send("+OK POP3 server saying goodbye...");
                 break;
+            case ERR:
+                send("-ERR  Unknown method.");
+                break;
             default:
                 send("-ERR  Invalid command in current state.");
                 break;
         }
     }
 
+    /**
+     * Send message to client
+     * @param message Message to send
+     */
     private void send(String message) {
         System.out.println(message);
         out.println(message);

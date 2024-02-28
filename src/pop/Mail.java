@@ -1,4 +1,4 @@
-package server;
+package pop;
 
 public class Mail {
     public final long size;

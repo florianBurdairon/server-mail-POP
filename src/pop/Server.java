@@ -1,4 +1,4 @@
-package server;
+package pop;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -12,12 +12,13 @@ public class Server {
     ServerSocket serverSocket;
     ExecutorService pool;
 
-    static ArrayList<User> users = new ArrayList<>();
+    final static ArrayList<User> users = new ArrayList<>();
 
-    public Server()
+    public Server(int port)
     {
         try {
-            serverSocket = new ServerSocket(110);
+            // Create server socket
+            serverSocket = new ServerSocket(port);
             pool = Executors.newFixedThreadPool(20);
         } catch (IOException e) {
             System.err.println("Error on creation of server socket:\n" + e);
@@ -26,32 +27,49 @@ public class Server {
 
     public void handleConnections()
     {
-        try {
-            while (true) {
-                Socket newTask = serverSocket.accept();
+        while (true) {
+            // Wait for new connection
+            try (Socket newTask = serverSocket.accept()) {
                 System.out.println("New client connected");
+
+                // Start new thread for the new connection
                 pool.execute(new ServerThread(newTask));
+            } catch (IOException e) {
+                System.err.println("Error while waiting for connection:\n" + e);
+                break;
             }
-        } catch (IOException e) {
-            System.err.println("Error while waiting for connection:\n" + e);
         }
     }
 
+    /**
+     * Add a user to the server
+     * @param user User to add
+     */
     public static void addUser(User user)
     {
-        if (!userExists(user.getEmail())) users.add(user);
+        if (userDontExists(user.getEmail())) users.add(user);
     }
 
-    public static boolean userExists(String email)
+    /**
+     * Check if a user with the given email exists
+     * @param email Email of the user
+     * @return boolean
+     */
+    public static boolean userDontExists(String email)
     {
         for (User u : users) {
             if (u.getEmail().equals(email)) {
-                return true;
+                return false;
             }
         }
-        return false;
+        return true;
     }
 
+    /**
+     * Get the user with the given email
+     * @param email Email of the user
+     * @return User
+     */
     public static User getUser(String email)
     {
         for (User u : users) {
@@ -62,6 +80,11 @@ public class Server {
         return null;
     }
 
+    /**
+     * Check if the user with the given email has opened a session
+     * @param email Email of the user
+     * @return boolean
+     */
     public static boolean userHasOpenedSession(String email)
     {
         for (User u : users) {

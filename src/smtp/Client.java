@@ -1,4 +1,4 @@
-package client;
+package smtp;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -7,19 +7,19 @@ import java.util.Scanner;
 
 public class Client {
 
-    String ipServer;
-    int portSMTP = 25;
+    final String ipServer;
+    final int portSMTP;
 
-    public Client(String ipServer) {
+    public Client(String ipServer, int port) {
         this.ipServer = ipServer;
+        this.portSMTP = port;
     }
 
     public void sendMail(String ip, String fromEmail, String toEmail, String subject, String message) {
         System.out.println("Sending mail to " + toEmail);
 
-        try {
-            Socket smtpSocket = new Socket(ipServer, portSMTP);
-
+        // Create a socket to the server
+        try (Socket smtpSocket = new Socket(ipServer, portSMTP)) {
             if (smtpSocket.isConnected()) {
                 Scanner in = new Scanner(smtpSocket.getInputStream());
                 PrintWriter out = new PrintWriter(smtpSocket.getOutputStream());
@@ -27,6 +27,7 @@ public class Client {
                 String response = in.nextLine();
                 System.out.println(response);
 
+                // Send the commands to the server
                 try {
                     send(in, out, "HELO " + ip, true);
                     send(in, out, "MAIL FROM: " + fromEmail, true);
@@ -49,9 +50,12 @@ public class Client {
     }
 
     private static void send(Scanner in, PrintWriter out, String message, boolean requiresResponse) throws Exception {
+        // Send the message to the server
         System.out.println(message);
         out.println(message);
         out.flush();
+
+        // Get the response from the server
         if (requiresResponse) {
             String response = in.nextLine();
             System.out.println(response);

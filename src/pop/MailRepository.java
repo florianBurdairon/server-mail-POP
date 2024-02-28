@@ -1,4 +1,4 @@
-package server;
+package pop;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -18,6 +18,10 @@ public class MailRepository {
         deletedMails = new HashMap<>();
     }
 
+    /**
+     * Retrieve mails from the user's directory
+     * @return a map of mails with their index as key
+     */
     private Map<Integer, Mail> retrieveMails() {
         Map<Integer, Mail> mails = new HashMap<>();
         File folder = new File(dataRootDirectory + user.getUsername());
@@ -31,6 +35,7 @@ public class MailRepository {
                         builder.append(scanner.nextLine());
                     }
                     mails.put(i, new Mail(files[i].getAbsolutePath(), builder.toString()));
+                    scanner.close();
                 } catch (FileNotFoundException e) {
                     System.err.println(e.getMessage());
                 }
@@ -39,33 +44,51 @@ public class MailRepository {
         return mails;
     }
 
-    public long[] getMailsSize() {
-        long[] mailsSize = new long[mails.size()];
-        for(int i = 0; i < mails.size(); i++) {
-            mailsSize[i] = mails.get(i).size;
-        }
+    /**
+     * Get the size of each mail
+     * @return a map of mails with their index as key and their size as value
+     */
+    public Map<Integer, Long> getMailsSize() {
+        Map<Integer, Long> mailsSize = new HashMap<>();//new long[mails.size()];
+        mails.forEach((index, mail) -> mailsSize.put(index, mail.size));
         return mailsSize;
     }
 
+    /**
+     * Get the content of a mail at a given index
+     * @param index the index of the mail
+     * @return the content of the mail
+     */
     public String getMailAtIndex(int index) {
         Mail mail = mails.get(index);
         return mail.content;
     }
 
+    /**
+     * Delete a mail at a given index
+     * @param index the index of the mail
+     */
     public void deleteMail(int index) {
         deletedMails.put(index, mails.get(index));
         mails.remove(index);
     }
 
+    /**
+     * Reset the deleted mails
+     */
     public void resetDeletedMails() {
         mails.putAll(deletedMails);
         deletedMails = new HashMap<>();
     }
 
+    /**
+     * Update the mails
+     */
     public void updateMails() {
         deletedMails.forEach((index, deleteMail) -> {
             File toDeleteFile = new File(deleteMail.filepath);
-            toDeleteFile.delete();
+            System.out.println(deleteMail.filepath);
+            System.out.println(toDeleteFile.delete());
         });
         deletedMails = new HashMap<>();
     }

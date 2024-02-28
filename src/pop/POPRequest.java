@@ -1,4 +1,4 @@
-package server;
+package pop;
 
 import java.util.Arrays;
 
@@ -18,11 +18,18 @@ public class POPRequest {
         RSET,
         NOOP,
         QUIT,
+        ERR
     }
 
     public POPRequest(String request){
+        POPCommand command1;
         String[] splits = request.split(" ");
-        this.command = POPCommand.valueOf(splits[0]);
+        try {
+            command1 = POPCommand.valueOf(splits[0]);
+        } catch (IllegalArgumentException e) {
+            command1 = POPCommand.ERR;
+        }
+        this.command = command1;
         args = Arrays.copyOfRange(splits, 1, splits.length);
     }
 }
